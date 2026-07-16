@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0B1210">
+<title>بازارباز | آربیتراژ و حباب بازار ایران</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ibm-plex-mono/1.1.0/css/ibm-plex-mono.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="toast-root" class="toast-root"></div>
+
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="brand-mark">ب</span>
+    <div>
+      <h1>بازارباز</h1>
+      <p class="topbar-sub" id="lastUpdate">به‌روزرسانی نشده</p>
+    </div>
+  </div>
+  <button class="icon-btn" id="refreshBtn" aria-label="به‌روزرسانی">⟳</button>
+</header>
+
+<main id="app">
+
+  <!-- ===================== تب ۰: داشبورد ===================== -->
+  <section class="view" id="view-dashboard" data-view="dashboard">
+    <div class="view-head">
+      <h2>داشبورد بازار</h2>
+      <p class="hint">خلاصه وضعیت و بهترین فرصت لحظه‌ای</p>
+    </div>
+    <div id="heroCard"></div>
+    <h3 class="sub-title">فرصت‌های بعدی</h3>
+    <div id="dashMini" class="card-list"></div>
+  </section>
+
+  <!-- ===================== تب ۱: آربیتراژ ===================== -->
+  <section class="view hidden" id="view-arb" data-view="arb">
+    <div class="view-head">
+      <h2>آربیتراژ صرافی‌های رمزارز</h2>
+      <p class="hint">بیشترین اختلاف قیمت بین صرافی‌های ایرانی برای هر رمزارز</p>
+    </div>
+    <div id="arbList" class="card-list"></div>
+  </section>
+
+  <!-- ===================== تب ۲: حباب طلا و سکه ===================== -->
+  <section class="view hidden" id="view-gold" data-view="gold">
+    <div class="view-head">
+      <h2>حباب طلا و سکه</h2>
+      <p class="hint">مقایسه قیمت بازار با ارزش ذاتی</p>
+    </div>
+
+    <div class="gauge-card">
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 200 120" class="gauge-svg">
+          <path d="M20 110 A 80 80 0 0 1 180 110" class="gauge-track"/>
+          <path id="gaugeArc" d="M20 110 A 80 80 0 0 1 180 110" class="gauge-arc"/>
+        </svg>
+        <div class="gauge-value">
+          <span id="gaugePct">--</span>
+          <small>درصد حباب</small>
+        </div>
+      </div>
+      <select id="coinType" class="select-coin">
+        <option value="emami">سکه امامی (۸.۱۳۳ گرم / عیار ۹۰۰)</option>
+        <option value="bahar">بهار آزادی (۸.۱۳۳ گرم / عیار ۹۰۰)</option>
+        <option value="half">نیم سکه (۴.۰۶۶۵ گرم)</option>
+        <option value="quarter">ربع سکه (۲.۰۳۳ گرم)</option>
+        <option value="gerami">سکه گرمی (۱ گرم)</option>
+        <option value="gram18">طلای ۱۸ عیار (هر گرم)</option>
+      </select>
+    </div>
+
+    <div class="input-grid">
+      <label>قیمت انس جهانی طلا (دلار)
+        <input type="number" id="inOunce" inputmode="decimal">
+      </label>
+      <label>نرخ دلار (تومان)
+        <input type="number" id="inUsd" inputmode="decimal">
+      </label>
+      <label>قیمت بازار سکه/طلا (تومان)
+        <input type="number" id="inMarket" inputmode="decimal">
+      </label>
+    </div>
+    <div class="calc-summary" id="goldSummary"></div>
+    <button class="btn-primary full" id="logGoldBtn">ثبت این سیگنال در تاریخچه</button>
+  </section>
+
+  <!-- ===================== تب ۳: صندوق‌ها ===================== -->
+  <section class="view hidden" id="view-funds" data-view="funds">
+    <div class="view-head">
+      <h2>صندوق‌های طلا، نقره و کالا</h2>
+      <p class="hint">اختلاف قیمت بازار صندوق نسبت به NAV (ارزش خالص دارایی)</p>
+    </div>
+    <div id="fundsList" class="card-list"></div>
+    <p class="hint small">⚠️ نمادها و NAV نمونه‌اند. برای داده واقعی به بخش «راهنمای اتصال» در پایین صفحه تنظیمات مراجعه کنید.</p>
+  </section>
+
+  <!-- ===================== تب ۴: رتبه‌بندی ===================== -->
+  <section class="view hidden" id="view-rank" data-view="rank">
+    <div class="view-head">
+      <h2>رتبه‌بندی فرصت‌ها</h2>
+      <p class="hint">همه فرصت‌ها، یکجا و مرتب‌شده بر اساس امتیاز فرصت</p>
+    </div>
+    <div id="rankList" class="card-list"></div>
+  </section>
+
+  <!-- ===================== تب ۵: پرتفوی ===================== -->
+  <section class="view hidden" id="view-portfolio" data-view="portfolio">
+    <div class="view-head">
+      <h2>پرتفوی شخصی</h2>
+      <p class="hint">دارایی‌هایت را وارد کن تا ارزش کل و سود/زیان را ببینی</p>
+    </div>
+
+    <div class="input-grid">
+      <label>نوع دارایی
+        <select id="pfType" class="select-coin">
+          <option value="crypto">رمزارز</option>
+          <option value="gold">طلا/سکه</option>
+          <option value="fund">واحد صندوق</option>
+          <option value="cash">نقد (تومان)</option>
+        </select>
+      </label>
+      <label id="pfSubWrap">زیرنوع
+        <select id="pfSub" class="select-coin"></select>
+      </label>
+      <label>مقدار / تعداد
+        <input type="number" id="pfQty" inputmode="decimal" placeholder="مثلاً 2 یا 0.05">
+      </label>
+      <label>قیمت خرید هر واحد (تومان) — اختیاری، برای سود/زیان
+        <input type="number" id="pfAvgPrice" inputmode="decimal">
+      </label>
+    </div>
+    <button class="btn-primary full" id="addPfBtn">افزودن به پرتفوی</button>
+
+    <div class="calc-summary" id="pfTotal" style="margin-top:14px"></div>
+    <div id="pfList" class="card-list" style="margin-top:10px"></div>
+  </section>
+
+  <!-- ===================== تب ۶: تنظیمات و هشدار ===================== -->
+  <section class="view hidden" id="view-alerts" data-view="alerts">
+    <div class="view-head">
+      <h2>تنظیمات و هشدار</h2>
+      <p class="hint">آستانه‌ها، ریسک‌پذیری و بازارهای مورد علاقه‌ات را تعیین کن</p>
+    </div>
+
+    <div class="notif-permission" id="notifPermBox">
+      <p id="notifPermText">برای دریافت هشدار روی گوشی، ابتدا اجازه نوتیفیکیشن را بده.</p>
+      <button class="btn-primary" id="askPermBtn">فعال‌سازی نوتیفیکیشن</button>
+    </div>
+
+    <div class="input-grid">
+      <label>حداقل سود آربیتراژ برای «فرصت واقعی» (٪)
+        <input type="number" id="inMinProfit" inputmode="decimal">
+      </label>
+      <label>آستانه اسپرد آربیتراژ رمزارز برای هشدار (٪)
+        <input type="number" id="thArb" inputmode="decimal">
+      </label>
+      <label>آستانه حباب سکه/طلا (٪)
+        <input type="number" id="thGold" inputmode="decimal">
+      </label>
+      <label>آستانه حباب/تخفیف صندوق (٪)
+        <input type="number" id="thFund" inputmode="decimal">
+      </label>
+      <label>مقدار سرمایه قابل تخصیص (تومان) — اختیاری
+        <input type="number" id="inCapital" inputmode="decimal">
+      </label>
+      <label>سطح ریسک‌پذیری
+        <select id="inRisk" class="select-coin">
+          <option value="low">محافظه‌کار</option>
+          <option value="medium">متعادل</option>
+          <option value="high">ریسک‌پذیر</option>
+        </select>
+      </label>
+    </div>
+
+    <p class="hint" style="margin-bottom:8px">بازارهای مورد علاقه برای هشدار آربیتراژ:</p>
+    <div id="favCoins" class="fav-grid"></div>
+
+    <p class="hint" style="margin:14px 0 8px">نوع هشدارها:</p>
+    <div id="alertTypes" class="fav-grid"></div>
+
+    <button class="btn-primary full" id="saveAlertsBtn" style="margin-top:14px">ذخیره تنظیمات</button>
+
+    <div class="alert-note">
+      <p><strong>محدودیت مهم:</strong> تا وقتی اپ باز و فعال است، بررسی و هشدار به‌صورت زنده روی گوشی کار می‌کند. برای هشدار در پس‌زمینه وقتی اپ کاملاً بسته است، بعداً باید یک سرور کوچک پشت این اپ وصل کنیم که مرتب چک کند و Push بفرستد؛ الان چنین سروری راه‌اندازی نشده.</p>
+    </div>
+  </section>
+
+  <!-- ===================== تب ۶: تاریخچه سیگنال‌ها ===================== -->
+  <section class="view hidden" id="view-history" data-view="history">
+    <div class="view-head">
+      <h2>ثبت عملکرد سیگنال‌ها</h2>
+      <p class="hint">سیگنال‌هایی که ثبت کردی و عملکردشان تا الان</p>
+    </div>
+    <div id="historyList" class="card-list"></div>
+    <button class="btn-ghost full" id="clearHistoryBtn">پاک‌کردن کل تاریخچه</button>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tab-btn active" data-view="dashboard"><span class="tab-ic">⌂</span><span>داشبورد</span></button>
+  <button class="tab-btn" data-view="arb"><span class="tab-ic">⇄</span><span>آربیتراژ</span></button>
+  <button class="tab-btn" data-view="gold"><span class="tab-ic">◔</span><span>حباب طلا</span></button>
+  <button class="tab-btn" data-view="funds"><span class="tab-ic">▤</span><span>صندوق‌ها</span></button>
+  <button class="tab-btn" data-view="rank"><span class="tab-ic">☰</span><span>رتبه‌بندی</span></button>
+  <button class="tab-btn" data-view="portfolio"><span class="tab-ic">◆</span><span>پرتفوی</span></button>
+  <button class="tab-btn" data-view="alerts"><span class="tab-ic">◉</span><span>تنظیمات</span></button>
+  <button class="tab-btn" data-view="history"><span class="tab-ic">✓</span><span>تاریخچه</span></button>
+</nav>
+
+<script src="app.js"></script>
+</body>
+</html>

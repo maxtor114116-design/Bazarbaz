@@ -1,0 +1,238 @@
+/* ===== Design tokens =====
+   bg-deep   #0B1210  near-black with a green cast (trading-floor feel)
+   surface   #121A17  card background
+   surface-2 #182420  raised / input background
+   border    #223028
+   gold      #C9A227  literal-gold accent — bubble gauge, coin content
+   emerald   #1F9D7C  growth / crypto accent
+   red       #E5484D  alerts, negative
+   text-hi   #F1F3F0
+   text-lo   #94A39C
+*/
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: #0B1210;
+  color: #F1F3F0;
+  font-family: 'Vazirmatn', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+.mono { font-family: 'IBM Plex Mono', monospace; }
+
+/* ---------- topbar ---------- */
+.topbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top)) 16px 14px;
+  background: rgba(11,18,16,0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid #223028;
+}
+.topbar-title { display: flex; align-items: center; gap: 10px; }
+.brand-mark {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, #C9A227, #8f7419);
+  color: #0B1210; font-weight: 800; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.topbar h1 { font-size: 16px; margin: 0; font-weight: 700; }
+.topbar-sub { margin: 2px 0 0; font-size: 11px; color: #94A39C; font-family: 'IBM Plex Mono', monospace; }
+.icon-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: #182420; border: 1px solid #223028; color: #F1F3F0;
+  font-size: 16px; display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:active { transform: rotate(180deg); transition: transform .4s; }
+
+/* ---------- layout ---------- */
+main { padding: 16px 16px 24px; max-width: 560px; margin: 0 auto; }
+.view.hidden { display: none; }
+.view-head { margin-bottom: 14px; }
+.view-head h2 { font-size: 18px; margin: 0 0 4px; font-weight: 700; }
+.hint { font-size: 12.5px; color: #94A39C; margin: 0; line-height: 1.6; }
+.hint.small { font-size: 11px; margin-top: 10px; }
+
+/* ---------- card list ---------- */
+.card-list { display: flex; flex-direction: column; gap: 10px; }
+
+.opp-card {
+  background: #121A17; border: 1px solid #223028; border-radius: 14px;
+  padding: 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.opp-top { display: flex; align-items: center; justify-content: space-between; }
+.opp-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14.5px; }
+.opp-coin-badge {
+  width: 26px; height: 26px; border-radius: 8px; background: #182420;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #C9A227; border: 1px solid #223028;
+}
+.spread-pill {
+  font-family: 'IBM Plex Mono', monospace; font-size: 13px; font-weight: 700;
+  padding: 3px 9px; border-radius: 999px;
+}
+.spread-pill.high { background: rgba(229,72,77,0.15); color: #ff8a8f; }
+.spread-pill.mid  { background: rgba(201,162,39,0.15); color: #e8c257; }
+.spread-pill.low  { background: rgba(31,157,124,0.15); color: #4fd3ac; }
+
+.opp-route { font-size: 12.5px; color: #94A39C; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.opp-route b { color: #F1F3F0; font-weight: 600; }
+.opp-route .arrow { color: #C9A227; }
+
+.opp-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 2px; }
+.opp-prices { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #94A39C; }
+.mini-btn {
+  font-size: 11.5px; background: #182420; border: 1px solid #223028; color: #C9A227;
+  padding: 5px 10px; border-radius: 8px; font-family: 'Vazirmatn';
+}
+
+/* rank badge */
+.rank-badge {
+  width: 22px; height: 22px; border-radius: 7px; background: #1F9D7C22;
+  color: #4fd3ac; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.rank-row-top { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- gauge ---------- */
+.gauge-card {
+  background: #121A17; border: 1px solid #223028; border-radius: 16px;
+  padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  margin-bottom: 14px;
+}
+.gauge-wrap { position: relative; width: 200px; }
+.gauge-svg { width: 100%; display: block; }
+.gauge-track { fill: none; stroke: #182420; stroke-width: 14; stroke-linecap: round; }
+.gauge-arc { fill: none; stroke: #C9A227; stroke-width: 14; stroke-linecap: round;
+  stroke-dasharray: 251.2; stroke-dashoffset: 251.2; transition: stroke-dashoffset .5s, stroke .5s; }
+.gauge-value {
+  position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+}
+.gauge-value span { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 700; }
+.gauge-value small { display: block; font-size: 11px; color: #94A39C; }
+.select-coin {
+  width: 100%; background: #182420; border: 1px solid #223028; color: #F1F3F0;
+  border-radius: 10px; padding: 10px; font-family: 'Vazirmatn'; font-size: 13px;
+}
+
+/* ---------- inputs ---------- */
+.input-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.input-grid label { font-size: 12px; color: #94A39C; display: flex; flex-direction: column; gap: 6px; }
+.input-grid input {
+  background: #182420; border: 1px solid #223028; color: #F1F3F0;
+  border-radius: 10px; padding: 11px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 15px;
+}
+.input-grid input:focus { outline: none; border-color: #C9A227; }
+
+.calc-summary {
+  background: #121A17; border: 1px solid #223028; border-radius: 12px;
+  padding: 12px 14px; font-size: 13px; color: #94A39C; line-height: 2; margin-bottom: 12px;
+}
+.calc-summary b { color: #F1F3F0; font-family: 'IBM Plex Mono', monospace; }
+
+/* ---------- buttons ---------- */
+.btn-primary {
+  background: linear-gradient(135deg, #C9A227, #a3831c);
+  color: #0B1210; border: none; border-radius: 12px; padding: 13px;
+  font-family: 'Vazirmatn'; font-weight: 700; font-size: 14px;
+}
+.btn-primary.full { width: 100%; }
+.btn-ghost {
+  background: transparent; border: 1px solid #3a2b2b; color: #ff8a8f;
+  border-radius: 12px; padding: 13px; font-family: 'Vazirmatn'; font-weight: 600; font-size: 13px;
+  margin-top: 14px;
+}
+.btn-ghost.full { width: 100%; }
+
+/* ---------- alerts view ---------- */
+.notif-permission {
+  background: #121A17; border: 1px solid #223028; border-radius: 14px;
+  padding: 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.notif-permission p { margin: 0; font-size: 13px; color: #94A39C; line-height: 1.7; }
+.alert-note {
+  background: rgba(201,162,39,0.08); border: 1px solid rgba(201,162,39,0.3);
+  border-radius: 12px; padding: 12px 14px; margin-top: 16px;
+}
+.alert-note p { margin: 0; font-size: 12px; color: #d8c992; line-height: 1.8; }
+
+/* ---------- history ---------- */
+.hist-card { background: #121A17; border: 1px solid #223028; border-radius: 14px; padding: 13px 14px; }
+.hist-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.hist-type { font-size: 11px; color: #94A39C; }
+.hist-time { font-size: 10.5px; color: #5f6b65; font-family: 'IBM Plex Mono', monospace; }
+.hist-title { font-weight: 700; font-size: 13.5px; margin-bottom: 4px; }
+.hist-delta { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+.hist-delta.pos { color: #4fd3ac; }
+.hist-delta.neg { color: #ff8a8f; }
+.empty-state { text-align: center; padding: 40px 20px; color: #5f6b65; font-size: 13px; }
+
+/* ---------- tabbar ---------- */
+.tabbar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
+  display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  background: rgba(18,26,23,0.96); backdrop-filter: blur(12px);
+  border-top: 1px solid #223028; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  scrollbar-width: none;
+}
+.tabbar::-webkit-scrollbar { display: none; }
+.tab-btn {
+  flex: 0 0 auto; min-width: 64px; background: none; border: none; color: #5f6b65;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 6px; font-family: 'Vazirmatn'; font-size: 10px;
+}
+.tab-btn .tab-ic { font-size: 17px; }
+.tab-btn.active { color: #C9A227; }
+
+/* ---------- toast ---------- */
+.toast-root { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast {
+  background: #182420; border: 1px solid #C9A227; border-radius: 12px;
+  padding: 12px 14px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: toast-in .25s ease-out;
+}
+@keyframes toast-in { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ---------- dashboard hero ---------- */
+.sub-title { font-size: 13px; color: #94A39C; margin: 18px 0 10px; font-weight: 600; }
+.hero-card {
+  background: linear-gradient(160deg, #16211c, #121A17);
+  border: 1px solid #C9A227; border-radius: 18px; padding: 18px;
+}
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.hero-label { font-size: 11px; color: #94A39C; margin-bottom: 4px; }
+.hero-title { font-size: 19px; font-weight: 800; }
+.hero-kind { font-size: 11px; color: #C9A227; }
+.hero-decision {
+  font-size: 22px; font-weight: 800; margin: 10px 0 6px;
+}
+.hero-decision.buy { color: #4fd3ac; }
+.hero-decision.wait { color: #e8c257; }
+.hero-decision.sell, .hero-decision.avoid { color: #ff8a8f; }
+.hero-meta { display: flex; gap: 14px; font-size: 12.5px; color: #94A39C; margin-bottom: 10px; }
+.hero-meta b { color: #F1F3F0; font-family: 'IBM Plex Mono', monospace; }
+.hero-reasons { font-size: 12.5px; color: #94A39C; line-height: 1.9; }
+.hero-reasons li { margin-inline-start: 18px; }
+.empty-hero { text-align: center; padding: 30px 10px; color: #5f6b65; font-size: 13px; }
+
+/* ---------- favorites / toggle grid ---------- */
+.fav-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.fav-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: #182420; border: 1px solid #223028; border-radius: 10px;
+  padding: 8px 12px; font-size: 12.5px; cursor: pointer;
+}
+.fav-chip input { accent-color: #C9A227; }
+
+/* ---------- portfolio row ---------- */
+.pf-row { display: flex; justify-content: space-between; align-items: center; }
+.pf-remove { color: #ff8a8f; font-size: 11px; background: none; border: none; padding: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-btn:active { transform: none; }
+  .gauge-arc { transition: none; }
+}

@@ -24,6 +24,7 @@
     <div>
       <h1>بازارباز</h1>
       <p class="topbar-sub" id="lastUpdate">به‌روزرسانی نشده</p>
+      <p class="topbar-sub" id="liveStatusLine" style="font-size:10px"></p>
     </div>
   </div>
   <button class="icon-btn" id="refreshBtn" aria-label="به‌روزرسانی">⟳</button>
@@ -49,6 +50,10 @@
       <p class="hint">بیشترین اختلاف قیمت بین صرافی‌های ایرانی برای هر رمزارز</p>
     </div>
     <div id="arbList" class="card-list"></div>
+
+    <h3 class="sub-title">آربیتراژ مثلثی (درون یک صرافی)</h3>
+    <p class="hint" style="margin-bottom:10px">بدون نیاز به انتقال بین صرافی‌ها — سه معامله پشت‌سرهم داخل همون صرافی (تومان ↔ تتر ↔ رمزارز)</p>
+    <div id="triList" class="card-list"></div>
   </section>
 
   <!-- ===================== تب ۲: حباب طلا و سکه ===================== -->
@@ -70,12 +75,12 @@
         </div>
       </div>
       <select id="coinType" class="select-coin">
+        <option value="gram18">طلای ۱۸ عیار (هر گرم — واحد رایج بازار)</option>
         <option value="emami">سکه امامی (۸.۱۳۳ گرم / عیار ۹۰۰)</option>
         <option value="bahar">بهار آزادی (۸.۱۳۳ گرم / عیار ۹۰۰)</option>
         <option value="half">نیم سکه (۴.۰۶۶۵ گرم)</option>
         <option value="quarter">ربع سکه (۲.۰۳۳ گرم)</option>
         <option value="gerami">سکه گرمی (۱ گرم)</option>
-        <option value="gram18">طلای ۱۸ عیار (هر گرم)</option>
       </select>
     </div>
 

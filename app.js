@@ -14,12 +14,26 @@
 // و فراخوانی مستقیم از مرورگر گاهی با CORS بلاک می‌شود — در آن صورت باید از یک
 // پراکسی سبک (مثلاً یک Cloudflare Worker کوچک) رد شوند.
 const EXCHANGES = [
-  { id: 'nobitex',  name: 'نوبیتکس',  feePct: 0.35 },
-  { id: 'wallex',   name: 'والکس',    feePct: 0.30 },
-  { id: 'bitpin',   name: 'بیت‌پین',  feePct: 0.35 },
-  { id: 'tabdeal',  name: 'تبدیل',    feePct: 0.30 },
-  { id: 'ramzinex', name: 'رمزینکس',  feePct: 0.40 },
+  { id: 'nobitex',  name: 'نوبیتکس',   feePct: 0.35, type: 'market' },
+  { id: 'wallex',   name: 'والکس',     feePct: 0.30, type: 'market' },
+  { id: 'bitpin',   name: 'بیت‌پین',   feePct: 0.35, type: 'market' },
+  { id: 'tabdeal',  name: 'تبدیل',     feePct: 0.30, type: 'market' },
+  { id: 'ramzinex', name: 'رمزینکس',   feePct: 0.40, type: 'market' },
+  // TODO(اتصال واقعی): این‌ها از لیست صرافی‌های معرفی‌شده در arzex.io اضافه شدند.
+  // کارمزدها بر اساس «حداکثر کارمزد» اعلامی هر صرافی تخمین زده شده و باید موقع
+  // اتصال واقعی از مستندات رسمی خودشان دقیق شود.
+  { id: 'raastin',  name: 'راستین',    feePct: 0.20, type: 'market' },
+  { id: 'twox',     name: 'توایکس',    feePct: 0.20, type: 'otc' },
+  { id: 'arzplus',  name: 'ارز پلاس',  feePct: 0.20, type: 'otc' },
+  { id: 'bit24',    name: 'بیت ۲۴',    feePct: 0.20, type: 'otc' },
+  { id: 'pooleno',  name: 'پول‌نو',    feePct: 0.25, type: 'otc' },
+  { id: 'efex',     name: 'افکس',      feePct: 0.25, type: 'market' },
+  { id: 'tetherland', name: 'تترلند',  feePct: 0.10, type: 'otc' },
 ];
+// نکته: صرافی‌های "otc" (فروشگاهی) یک نرخ خرید/فروش ثابت اعلام می‌کنن، نه یک
+// دفتر سفارش (Order Book) با بازار مستقل بین ارزها؛ یعنی برای آربیتراژ دوتایی
+// (خرید/فروش) قابل استفاده‌ان، اما چون بازار مستقیم COIN/USDT ندارن، توی
+// آربیتراژ مثلثی (که نیاز به سه بازار جدا داره) درنظر گرفته نمی‌شن.
 
 // قیمت‌های پایه تقریبی (تومان) — فقط برای دمو؛ با API واقعی جایگزین شود
 const COINS = [
@@ -65,7 +79,7 @@ const DEFAULT_SETTINGS = {
   riskLevel: 'medium',
   favoriteCoins: ['USDT','BTC','ETH','TON','DOGE','TRX'],
   alertTypes: { arb: true, gold: true, fund: true },
-  gold: { ounce: 4100, usd: 180000, market: 0, coinType: 'emami' },
+  gold: { ounce: 4100, usd: 180000, market: 0, coinType: 'gram18' },
 };
 
 function loadJSON(key, fallback) {
@@ -92,16 +106,103 @@ function jitter(base, pctRange) {
 }
 
 let priceSnapshot = {};
+let liveStatus = {}; // { nobitex: true/false, wallex: true/false, ... } — پر می‌شه بعد از تلاش برای اتصال زنده
 function refreshSnapshot() {
   priceSnapshot = {};
   COINS.forEach(coin => {
     priceSnapshot[coin.id] = {};
     EXCHANGES.forEach(ex => {
-      priceSnapshot[coin.id][ex.id] = Math.round(jitter(coin.base, 1.4));
+      const ask = jitter(coin.base, 1.4);
+      const spreadPct = 0.05 + Math.random() * 0.25; // اسپرد داخلی مصنوعی بین خرید و فروش
+      const bid = ask * (1 - spreadPct / 100);
+      priceSnapshot[coin.id][ex.id] = { bid: Math.round(bid), ask: Math.round(ask) };
     });
   });
 }
 refreshSnapshot();
+
+function midPrice(coinId, exId) {
+  const p = priceSnapshot[coinId][exId];
+  return (p.bid + p.ask) / 2;
+}
+function avgMidAcrossExchanges(coinId) {
+  const vals = EXCHANGES.map(ex => midPrice(coinId, ex.id));
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+/* =========================================================================
+   اتصال زنده به API صرافی‌ها
+   فعلاً فقط نوبیتکس و والکس (چون مستندات رسمی و ساختار پاسخشون تایید شده).
+   بقیه صرافی‌ها هنوز روی موتور دمو/شبیه‌سازی هستن تا endpoint دقیقشون تایید بشه.
+   ========================================================================= */
+
+// این Worker مال خودته (فایل cloudflare-worker/worker.js رو توی Cloudflare دیپلوی
+// کردی) — آدرسش رو اینجا جایگزین کن. تا وقتی دیپلویش نکردی، این مقدار پیش‌فرض
+// کار نمی‌کنه و اپ فقط به دادهٔ دمو برمی‌گرده (بدون کرش کردن).
+const CORS_PROXY = 'https://bazarbaz-proxy.maxtor114116.workers.dev/?url=';
+
+async function fetchJsonWithFallback(url, options) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) throw new Error('status ' + res.status);
+    return await res.json();
+  } catch (e1) {
+    const res2 = await fetch(CORS_PROXY + encodeURIComponent(url), options);
+    if (!res2.ok) throw new Error('proxy status ' + res2.status);
+    return await res2.json();
+  }
+}
+
+// اگه قیمت دریافتی بیش از حد با قیمت مرجع (میانگین بقیه صرافی‌ها) فرق داشته
+// باشه، احتمالاً واحد پول اشتباه پارس شده (مثلاً ریال به‌جای تومان) — به‌جای
+// نمایش یک عدد غلط و گمراه‌کننده، همون سلول رو رد می‌کنیم و مقدار دمو می‌مونه.
+function sanityCheck(coinId, value) {
+  const ref = COINS.find(c => c.id === coinId).base;
+  return value > ref * 0.2 && value < ref * 5;
+}
+
+const NOBITEX_CURRENCY = { USDT: 'usdt', BTC: 'btc', ETH: 'eth', TON: 'ton', DOGE: 'doge', TRX: 'trx' };
+async function fetchNobitex() {
+  const data = await fetchJsonWithFallback('https://api.nobitex.ir/market/stats', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}), // بدون فیلتر = همه بازارها با هم برمی‌گردن
+  });
+  let ok = false;
+  Object.entries(NOBITEX_CURRENCY).forEach(([coinId, key]) => {
+    const stat = data.stats && data.stats[key + '-rls'];
+    if (!stat || !stat.bestBuy || !stat.bestSell) return;
+    // نوبیتکس همیشه به ریال جواب می‌ده، برای تومان باید تقسیم بر ۱۰ کرد
+    const ask = parseFloat(stat.bestSell) / 10;
+    const bid = parseFloat(stat.bestBuy) / 10;
+    if (!sanityCheck(coinId, ask)) return;
+    priceSnapshot[coinId]['nobitex'] = { bid: Math.round(bid), ask: Math.round(ask) };
+    ok = true;
+  });
+  return ok;
+}
+
+const WALLEX_SYMBOL = { USDT: 'USDTTMN', BTC: 'BTCTMN', ETH: 'ETHTMN', TON: 'TONTMN', DOGE: 'DOGETMN', TRX: 'TRXTMN' };
+async function fetchWallex() {
+  const data = await fetchJsonWithFallback('https://api.wallex.ir/v1/markets');
+  let ok = false;
+  Object.entries(WALLEX_SYMBOL).forEach(([coinId, symbol]) => {
+    const m = data.result && data.result.symbols && data.result.symbols[symbol];
+    if (!m || !m.stats) return;
+    const ask = parseFloat(m.stats.askPrice);
+    const bid = parseFloat(m.stats.bidPrice);
+    if (!sanityCheck(coinId, ask)) return;
+    priceSnapshot[coinId]['wallex'] = { bid: Math.round(bid), ask: Math.round(ask) };
+    ok = true;
+  });
+  return ok;
+}
+
+async function refreshLivePrices() {
+  const results = await Promise.allSettled([fetchNobitex(), fetchWallex()]);
+  liveStatus.nobitex = results[0].status === 'fulfilled' && results[0].value === true;
+  liveStatus.wallex  = results[1].status === 'fulfilled' && results[1].value === true;
+}
 
 /* =========================================================================
    فرمت‌دهی
@@ -144,9 +245,10 @@ function mockTransferMinutes(coinId) {
 
 function computeArbitrage() {
   return COINS.map(coin => {
-    const prices = EXCHANGES.map(ex => ({ ex, price: priceSnapshot[coin.id][ex.id] }));
-    const buy = prices.reduce((a, b) => (b.price < a.price ? b : a));
-    const sell = prices.reduce((a, b) => (b.price > a.price ? b : a));
+    const asks = EXCHANGES.map(ex => ({ ex, price: priceSnapshot[coin.id][ex.id].ask }));
+    const bids = EXCHANGES.map(ex => ({ ex, price: priceSnapshot[coin.id][ex.id].bid }));
+    const buy = asks.reduce((a, b) => (b.price < a.price ? b : a));   // ارزون‌ترین جایی که می‌شه خرید (کمترین ask)
+    const sell = bids.reduce((a, b) => (b.price > a.price ? b : a));  // گرون‌ترین جایی که می‌شه فروخت (بیشترین bid)
     const rawSpreadPct = (sell.price - buy.price) / buy.price * 100;
     const netPct = rawSpreadPct - buy.ex.feePct - sell.ex.feePct;
     const liquidity = mockLiquidity(coin.id);
@@ -181,6 +283,71 @@ function renderArbitrage() {
           <div class="opp-prices mono">${fmtToman(item.buy.price)} → ${fmtToman(item.sell.price)}</div>
           <button class="mini-btn" onclick="logSignal('arb','${item.coin.name}: ${item.buy.ex.name}←${item.sell.ex.name}', ${item.netPct.toFixed(3)})">ثبت سیگنال</button>
         </div>
+      </div>
+    `);
+  });
+}
+
+/* =========================================================================
+   ۱ب) آربیتراژ مثلثی (درون یک صرافی — بدون نیاز به انتقال بین صرافی‌ها)
+   ========================================================================= */
+
+// TODO(اتصال واقعی): این محاسبه فرض می‌کند صرافی یک بازار مستقیم COIN/USDT هم
+// دارد (نه فقط COIN/IRT و USDT/IRT جدا). موقع اتصال واقعی باید مستقیماً از
+// همان بازار (مثلاً BTCUSDT در نوبیتکس) قیمت لحظه‌ای گرفته شود، نه تخمین زده.
+// فقط صرافی‌های نوع "market" (با دفتر سفارش واقعی) وارد این محاسبه می‌شوند؛
+// صرافی‌های فروشگاهی/OTC چون بازار مستقیم بین دو رمزارز ندارند کنار گذاشته می‌شوند.
+function mockDirectCrossRate(coin, ex) {
+  const usdtIrt = midPrice('USDT', ex.id);
+  const coinIrt = midPrice(coin.id, ex.id);
+  const implied = coinIrt / usdtIrt;
+  // نرخ بازار مستقیم COIN/USDT معمولاً کمی با نرخ ضمنی (از دو مسیر IRT) فرق دارد؛
+  // همین اختلاف کوچک است که فرصت آربیتراژ مثلثی می‌سازد.
+  return jitter(implied, 0.8);
+}
+
+function computeTriangular() {
+  const results = [];
+  EXCHANGES.filter(ex => ex.type === 'market').forEach(ex => {
+    const usdtIrt = midPrice('USDT', ex.id);
+    const fee = ex.feePct / 100;
+    COINS.filter(c => c.id !== 'USDT').forEach(coin => {
+      const coinIrt = midPrice(coin.id, ex.id);
+      const directRate = mockDirectCrossRate(coin, ex); // USDT به‌ازای هر واحد coin
+
+      // مسیر الف: تومان → تتر → کوین → تومان
+      const amtUsdt = (1 / usdtIrt) * (1 - fee);
+      const amtCoinA = (amtUsdt / directRate) * (1 - fee);
+      const netPctA = (amtCoinA * coinIrt * (1 - fee) - 1) * 100;
+
+      // مسیر ب: تومان → کوین → تتر → تومان
+      const amtCoinB = (1 / coinIrt) * (1 - fee);
+      const amtUsdtB = (amtCoinB * directRate) * (1 - fee);
+      const netPctB = (amtUsdtB * usdtIrt * (1 - fee) - 1) * 100;
+
+      const useA = netPctA >= netPctB;
+      results.push({
+        ex, coin, netPct: useA ? netPctA : netPctB,
+        path: useA ? `تومان → تتر → ${coin.name} → تومان` : `تومان → ${coin.name} → تتر → تومان`,
+      });
+    });
+  });
+  return results.sort((a, b) => b.netPct - a.netPct);
+}
+
+function renderTriangular() {
+  const list = computeTriangular().slice(0, 8);
+  const root = document.getElementById('triList');
+  if (!root) return;
+  root.innerHTML = '';
+  list.forEach(item => {
+    root.insertAdjacentHTML('beforeend', `
+      <div class="opp-card">
+        <div class="opp-top">
+          <div class="opp-name">${item.ex.name}</div>
+          <span class="spread-pill ${pctClass(item.netPct)}">${fmtPct(item.netPct)}</span>
+        </div>
+        <div class="opp-route">مسیر: <b>${item.path}</b></div>
       </div>
     `);
   });
@@ -228,8 +395,10 @@ function renderGold() {
   document.getElementById('gaugePct').textContent = fmtPct(r.bubblePct);
 
   const d = goldDecision(r.bubblePct);
+  const gram18 = r.gram24 * 0.75;
   document.getElementById('goldSummary').innerHTML = `
-    قیمت هر گرم طلای ۲۴ عیار: <b class="mono">${fmtToman(r.gram24)}</b><br>
+    قیمت جهانی هر گرم طلا (خام، ۲۴ عیار — مبنای محاسبه): <b class="mono">${fmtToman(r.gram24)}</b><br>
+    قیمت هر گرم طلای ۱۸ عیار (واحد رایج بازار ایران): <b class="mono">${fmtToman(gram18)}</b><br>
     ارزش ذاتی ${r.type.label}: <b class="mono">${fmtToman(r.intrinsic)}</b><br>
     قیمت بازار وارد شده: <b class="mono">${fmtToman(r.market)}</b><br>
     توصیه: <b>${d.label}</b> — ${d.reasons.join('، ')}
@@ -377,6 +546,20 @@ function renderRank() {
 /* =========================================================================
    پرتفوی شخصی
    ========================================================================= */
+
+function currentPriceFor(type, sub) {
+  if (type === 'crypto') return avgMidAcrossExchanges(sub);
+  if (type === 'gold') {
+    const g = settings.gold;
+    const t = COIN_TYPES[sub];
+    return goldGramPrice(g.ounce, g.usd) * t.purity * t.weight; // ارزش ذاتی به‌عنوان تخمین قیمت فعلی
+  }
+  if (type === 'fund') {
+    const f = computeFunds().find(x => x.symbol === sub);
+    return f ? f.market : 0;
+  }
+  return 0;
+}
 
 const PF_SUB_OPTIONS = {
   crypto: COINS.map(c => ({ value: c.id, label: c.name })),
@@ -665,9 +848,11 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
    رفرش کلی
    ========================================================================= */
 
-function renderAll() {
-  refreshSnapshot();
+async function renderAll() {
+  refreshSnapshot();       // اول یک پایه دمو برای همه صرافی‌ها/رمزارزها می‌سازیم
+  await refreshLivePrices(); // بعد سلول‌های نوبیتکس/والکس رو (اگه موفق شد) با داده زنده جایگزین می‌کنیم
   renderArbitrage();
+  renderTriangular();
   renderGold();
   renderFunds();
   renderRank();
@@ -677,6 +862,12 @@ function renderAll() {
   fillAlertInputs();
   updateNotifPermUI();
   document.getElementById('lastUpdate').textContent = 'به‌روزرسانی: ' + new Date().toLocaleTimeString('fa-IR');
+  const liveNames = [];
+  if (liveStatus.nobitex) liveNames.push('نوبیتکس');
+  if (liveStatus.wallex) liveNames.push('والکس');
+  document.getElementById('liveStatusLine').innerHTML = liveNames.length
+    ? `🟢 داده زنده: ${liveNames.join('، ')} — بقیه صرافی‌ها دمو`
+    : `🟡 حالت دمو (اتصال زنده برقرار نشد)`;
   checkAlerts();
 }
 

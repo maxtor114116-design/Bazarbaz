@@ -144,11 +144,22 @@ const CORS_PROXY = 'https://bazarbaz-proxy.maxtor114116.workers.dev/?url=';
 async function fetchJsonWithFallback(url, options) {
   try {
     const res = await fetch(url, options);
-    if (!res.ok) throw new Error('status ' + res.status);
+    if (!res.ok) throw new Error('مستقیم رد شد: status ' + res.status);
     return await res.json();
   } catch (e1) {
-    const res2 = await fetch(CORS_PROXY + encodeURIComponent(url), options);
-    if (!res2.ok) throw new Error('proxy status ' + res2.status);
+    if (CORS_PROXY.includes('YOUR-WORKER-NAME')) {
+      throw new Error('مستقیم رد شد (' + e1.message + ') و آدرس Worker هنوز جایگزین نشده');
+    }
+    let res2;
+    try {
+      res2 = await fetch(CORS_PROXY + encodeURIComponent(url), options);
+    } catch (e2) {
+      throw new Error('هم مستقیم هم Worker رد شد: ' + e2.message);
+    }
+    if (!res2.ok) {
+      const bodyText = await res2.text().catch(() => '');
+      throw new Error('Worker جواب ' + res2.status + ' داد: ' + bodyText.slice(0, 120));
+    }
     return await res2.json();
   }
 }
@@ -169,9 +180,11 @@ async function fetchNobitex() {
     body: JSON.stringify({}), // بدون فیلتر = همه بازارها با هم برمی‌گردن
   });
   let ok = false;
+  let sawAnyStat = false;
   Object.entries(NOBITEX_CURRENCY).forEach(([coinId, key]) => {
     const stat = data.stats && data.stats[key + '-rls'];
     if (!stat || !stat.bestBuy || !stat.bestSell) return;
+    sawAnyStat = true;
     // نوبیتکس همیشه به ریال جواب می‌ده، برای تومان باید تقسیم بر ۱۰ کرد
     const ask = parseFloat(stat.bestSell) / 10;
     const bid = parseFloat(stat.bestBuy) / 10;
@@ -179,6 +192,11 @@ async function fetchNobitex() {
     priceSnapshot[coinId]['nobitex'] = { bid: Math.round(bid), ask: Math.round(ask) };
     ok = true;
   });
+  if (!ok) {
+    throw new Error(sawAnyStat
+      ? 'داده رسید ولی از آستانه منطقی (sanity check) رد نشد'
+      : 'جواب رسید ولی ساختارش با انتظار فرق داشت (data.stats خالی یا شکل عوض شده)');
+  }
   return ok;
 }
 
@@ -186,22 +204,31 @@ const WALLEX_SYMBOL = { USDT: 'USDTTMN', BTC: 'BTCTMN', ETH: 'ETHTMN', TON: 'TON
 async function fetchWallex() {
   const data = await fetchJsonWithFallback('https://api.wallex.ir/v1/markets');
   let ok = false;
+  let sawAnyStat = false;
   Object.entries(WALLEX_SYMBOL).forEach(([coinId, symbol]) => {
     const m = data.result && data.result.symbols && data.result.symbols[symbol];
     if (!m || !m.stats) return;
+    sawAnyStat = true;
     const ask = parseFloat(m.stats.askPrice);
     const bid = parseFloat(m.stats.bidPrice);
     if (!sanityCheck(coinId, ask)) return;
     priceSnapshot[coinId]['wallex'] = { bid: Math.round(bid), ask: Math.round(ask) };
     ok = true;
   });
+  if (!ok) {
+    throw new Error(sawAnyStat
+      ? 'داده رسید ولی از آستانه منطقی (sanity check) رد نشد'
+      : 'جواب رسید ولی ساختارش با انتظار فرق داشت (result.symbols خالی یا شکل عوض شده)');
+  }
   return ok;
 }
 
 async function refreshLivePrices() {
   const results = await Promise.allSettled([fetchNobitex(), fetchWallex()]);
-  liveStatus.nobitex = results[0].status === 'fulfilled' && results[0].value === true;
-  liveStatus.wallex  = results[1].status === 'fulfilled' && results[1].value === true;
+  liveStatus.nobitex = results[0].status === 'fulfilled';
+  liveStatus.nobitexError = results[0].status === 'rejected' ? results[0].reason.message : null;
+  liveStatus.wallex = results[1].status === 'fulfilled';
+  liveStatus.wallexError = results[1].status === 'rejected' ? results[1].reason.message : null;
 }
 
 /* =========================================================================
@@ -865,9 +892,17 @@ async function renderAll() {
   const liveNames = [];
   if (liveStatus.nobitex) liveNames.push('نوبیتکس');
   if (liveStatus.wallex) liveNames.push('والکس');
-  document.getElementById('liveStatusLine').innerHTML = liveNames.length
-    ? `🟢 داده زنده: ${liveNames.join('، ')} — بقیه صرافی‌ها دمو`
-    : `🟡 حالت دمو (اتصال زنده برقرار نشد)`;
+  let statusHtml;
+  if (liveNames.length === 2) {
+    statusHtml = `🟢 داده زنده: ${liveNames.join('، ')}`;
+  } else if (liveNames.length === 1) {
+    const failedName = liveStatus.nobitex ? 'والکس' : 'نوبیتکس';
+    const failedErr = liveStatus.nobitex ? liveStatus.wallexError : liveStatus.nobitexError;
+    statusHtml = `🟡 فقط ${liveNames[0]} زنده — ${failedName}: ${failedErr}`;
+  } else {
+    statusHtml = `🟡 دمو — نوبیتکس: ${liveStatus.nobitexError || '?'} | والکس: ${liveStatus.wallexError || '?'}`;
+  }
+  document.getElementById('liveStatusLine').innerHTML = statusHtml;
   checkAlerts();
 }
 
